@@ -1,57 +1,89 @@
+import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-from tpot import TPOTClassifier
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+from sklearn.model_selection import train_test_split, learning_curve
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, confusion_matrix, precision_score, recall_score, f1_score
+from xgboost import XGBClassifier
+import joblib
+import warnings
+warnings.filterwarnings('ignore')
 
-# Chargement du jeu de données
 data = pd.read_csv("Data/heart.csv")
 
-# Séparation des features et de la cible
-X = data.drop(columns=['target'])
-y = data['target']
+# Limitation des valeurs de certaines colonnes
+data.trestbps.loc[data.trestbps > 170] = 170
+data.chol.loc[data.chol > 360] = 360
+limite_inferieur = ( data.thalach.quantile(0.25)) -1.5 * (data.thalach.quantile(0.75)-data.thalach.quantile(0.25))
+data.thalach.loc[data.thalach < limite_inferieur] = limite_inferieur
 
-# Fonction pour extraire des méta-features
-def extract_meta_features(X):
-    meta_features = pd.DataFrame(index=X.index)  # Initialiser un DataFrame vide avec les mêmes index que X
+def learn(dataset, algorithme, opt=2):
+    X = dataset.drop('target', axis=1)
+    y = dataset['target']
 
-    # Méta-features statistiques pour les colonnes numériques
-    num_cols = X.select_dtypes(include=['number']).columns
-    for col in num_cols:
-        meta_features[f'{col}_mean'] = X[col].mean()
-        meta_features[f'{col}_std'] = X[col].std()
-        meta_features[f'{col}_min'] = X[col].min()
-        meta_features[f'{col}_max'] = X[col].max()
+    # train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.31, random_state=42)
 
-    # Méta-features pour les colonnes catégorielles
-    cat_cols = X.select_dtypes(include=['category', 'object']).columns
-    for col in cat_cols:
-        meta_features[f'{col}_nunique'] = X[col].nunique()
-        # Ajouter d'autres méta-features pour les colonnes catégorielles si nécessaire
+    # Standardization of numerical features with StandardScaler;
+    # Models Not Based on Decision Trees benefit most from this type of standardization.
+    scaler = StandardScaler()
 
-    # Ajouter des méta-features globales
-    meta_features['num_rows'] = len(X)
-    meta_features['num_cols'] = len(X.columns)
-    # ... ajouter d'autres méta-features globales ...
+    columns_scaler = ['age', 'trestbps', 'chol', 'thalach', 'oldpeak']
 
-    return meta_features
+    X_train[columns_scaler] = scaler.fit_transform(X_train[columns_scaler])
+    X_test[columns_scaler] = scaler.transform(X_test[columns_scaler])
 
-# Split des données en ensembles de meta-apprentissage et de test
-X_meta_train, X_meta_test, y_meta_train, y_meta_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    if opt == 0:
+        ml = algorithme(max_iter=1000)
+    elif opt == 1:
+        ml = algorithme(n_estimators=1000)
+    elif opt == 2:
+        ml = algorithme()
 
-# Extraction des méta-features pour l'ensemble de meta-apprentissage
-meta_features_train = extract_meta_features(X_meta_train)
+    # training
+    train_sizes, train_scores, valid_scores = learning_curve(ml, X_train, y_train, train_sizes=np.linspace(0.1, 1.0, 10), cv=5)
 
-# Entrainement d'un modèle de meta-learning (exemple avec TPOT)
-tpot = TPOTClassifier(generations=10, population_size=50, verbosity=2, random_state=42)
-tpot.fit(meta_features_train, y_meta_train)
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_sizes, np.mean(train_scores, axis=1), label='Training score')
+    plt.plot(train_sizes, np.mean(valid_scores, axis=1), label='Cross validation score')
+    plt.xlabel('Training examples')
+    plt.ylabel('Score')
+    plt.title('Learning Curve')
+    plt.legend()
+    plt.grid()
 
-# Utiliser le meilleur pipeline de TPOT
-final_model = tpot.fitted_pipeline_
+    plt.show()
 
-# Extraction des méta-features pour l'ensemble de meta-test
-meta_features_test = extract_meta_features(X_meta_test)
+    ml.fit(X_train, y_train)
+    print('Accuracy:')
+    score_train = ml.score(X_train, y_train)
+    print('     Train = {:.4}'.format(score_train * 100) + '%')
 
-# Evaluation sur l'ensemble de test
-y_pred = final_model.predict(meta_features_test)
-accuracy = accuracy_score(y_meta_test, y_pred)
-print("Accuracy:", accuracy)
+    score_test = ml.score(X_test, y_test)
+    print('     Test = {:.4}'.format(score_test * 100) + '%')
+
+    # predict
+    y_predict = ml.predict(X_test)
+    print('\nClassification Report:\n', classification_report(y_test, y_predict))
+    print('Confusion Matrix:')
+    confusion = confusion_matrix(y_test, y_predict)
+    sns.heatmap(confusion, annot=True, cmap='Blues')
+
+    # Precision, recall, F1-score
+    precision = precision_score(y_test, y_predict)
+    recall = recall_score(y_test, y_predict)
+    f1 = f1_score(y_test, y_predict)
+
+    print(f'\nPrecision: {precision}')
+    print(f'Recall: {recall}')
+    print(f'F1-score: {f1}')
+
+    return ml
+
+
+# Entraîner le modèle
+xgb_model = learn(data, XGBClassifier)
+joblib.dump(xgb_model, 'heart_Disease_model.pkl')
+
