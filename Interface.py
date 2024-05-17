@@ -1,9 +1,13 @@
+import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 from datetime import datetime, date
 import joblib
 from PIL import Image, ImageTk
+import datetime
+
+from Mysql import *
 
 # Charger le modèle pré-entraîné
 model = joblib.load('heart_Disease_model.pkl')
@@ -35,6 +39,7 @@ def analysis():
     user_data_int = [[int(value) for value in sublist] for sublist in user_data]
 
     # Effectuer des prédictions
+    global prediction
     prediction = model.predict(user_data_int)
 
     # Afficher le résultat
@@ -50,6 +55,99 @@ def analysis():
 
 def logout():
     root.destroy()
+# Définir la fonction pour effacer l'image
+def clear_prediction_image():
+    result_image_label.config(image=None)
+def save():
+    Registration2 = Registration.get()
+    Date2 = date.today()
+    DOB2 = DOB.get()
+    Name2 = Name.get()
+    try:
+        F2 = selection2()
+    except:
+        messagebox.showerror("Mission Data", "Please select Fbs!")
+    try:
+        B2 = selection()
+    except:
+        messagebox.showerror("Mission Data", "Please select Gender!")
+
+    try:
+        I2 = selection3()
+    except:
+        messagebox.showerror("Mission Data", "Please select Exang!")
+
+    try:
+        C2 = int(selection4())
+    except:
+        messagebox.showerror("Mission Data", "Please select cp!")
+    try:
+        G2 = int(restecg_combobox.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select restecg!")
+
+    try:
+        K2 = int(selection5())
+    except:
+        messagebox.showerror("Mission Data", "Please select slope!")
+
+    try:
+        L2 = int(ca_combobox.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select ca!")
+
+    try:
+        M2 = int(thal_combobox.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select thal!")
+
+    try:
+        D2 = int(trestbps.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select trestbps!")
+
+    try:
+        E2 = int(chol.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select chol!")
+
+    try:
+        H2 = int(thalach.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select thalach!")
+
+    try:
+        J2 = int(oldpeak.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select oldpeak!")
+
+    try:
+        N2 =  int(age.get())
+    except:
+        messagebox.showerror("Mission Data", "Please select age!")
+
+    # Print the values to the console
+    print("Registration:", Registration2)
+    print("Date:", str(Date2))
+    print("Name:", str(Name2))
+    print("DOB:", str(DOB2))
+    print("Fbs:", F2)
+    print("Gender:", B2)
+    print("Exang:", I2)
+    print("cp:", C2)
+    print("restecg:", G2)
+    print("slope:", K2)
+    print("ca:", L2)
+    print("thal:", M2)
+    print("trestbps:", D2)
+    print("chol:", E2)
+    print("thalach:", H2)
+    print("oldpeak:", J2)
+    print("age:", N2)
+
+    save_data_to_mysql(Registration2,Name2,Date2, DOB2, N2, B2, C2, D2, E2, F2, G2, H2, I2, J2, K2, L2, M2, prediction)
+    clear_fields()
+
 
 def clear_fields():
     Name.set("")
@@ -67,6 +165,7 @@ def clear_fields():
     thalach.set("")
     oldpeak.set("")
     age.set("")
+    result_image_label.image = ""
 
 
 def selection():
@@ -294,6 +393,7 @@ developer_label.place(x=1212, y=708)
 
 # Chargement des images pour les boutons
 analysis_button = tk.PhotoImage(file="Images/Analysis.png")
+save_button = tk.PhotoImage(file="Images/save.png")
 clear_button = tk.PhotoImage(file="Images/clear.png")
 info_button = tk.PhotoImage(file="Images/info.png")
 
@@ -301,6 +401,7 @@ info_button = tk.PhotoImage(file="Images/info.png")
 tk.Button(root, image=analysis_button, bd=0, bg=background, cursor='hand2', command=analysis).place(x=1068, y=278)
 tk.Button(root, image=info_button, bd=0, bg=background, cursor='hand2').place(x=1332, y=291)
 tk.Button(root, image=clear_button, bd=0, bg=background, cursor='hand2',command=clear_fields).place(x=1212, y=291)
+tk.Button(root, image=save_button, bd=0, bg=background, cursor='hand2',command=save).place(x=1370, y=250)
 
 # Bouton pour se déconnecter
 logout_icon = tk.PhotoImage(file="Images/logout.png")
